@@ -7,139 +7,198 @@ namespace Sparse_Matrix
     {
         static void Main(string[] args)
         {
-            SparsedMatrix matrix = new SparsedMatrix(3, 10);
+            SparseMatrix matrix = new SparseMatrix(3, 10);
 
-            matrix.AssignElement(0, 2, 1);
-            matrix.AssignElement(0, 3, 3);
-            matrix.AssignElement(0, 7, 5);
-            matrix.AssignElement(2, 5, 7);
-            matrix.AssignElement(2, 7, 1);
+            matrix.AssignElement(1, 3, 1);
+            matrix.AssignElement(1, 4, 3);
+            matrix.AssignElement(1, 8, 5);
+            matrix.AssignElement(3, 6, 7);
+            matrix.AssignElement(3, 8, 1);
             matrix.Print();
+
+            Console.WriteLine();
+            matrix.PrintStorage();
         }
     }
 
-    class SparsedMatrix
+    class SparseMatrix
     {
-        LinkedList<int> IA = new LinkedList<int>(new int[1]);     // IA[i] - индекс для JA и AN первого элемента в i-й строке (IA[n] - первая свободная позиция в JA и AN)
-                                                                  // не изменяет размер => нужно сделать массивом
-                                                                  // (?) массив пар указателей
+        LinkedList<Element<int, double>> Elements = new LinkedList<Element<int, double>>(new Element<int, double>[] { null });
+        LinkedListNode<Element<int, double>>[] IA = { null };    // хранит ссылки на элементы списка Elements
+        private const int offset = -1;                           // смещение для итерации по массиву
+        //int[] IAIndexes = new int[] { 1 };  // на всякий случай
 
-        LinkedList<int?> JA = new LinkedList<int?>(new int?[] { null });            // столбцовые индексы
-        LinkedList<double?> AN = new LinkedList<double?>(new double?[] { null });   // значения ненулевых элементов матрицы
+        public int Rows { get; } = 0;
+        public int Columns { get; } = 0;
 
-        int rows = 0;
-        int columns = 0;
-
-        public SparsedMatrix(int rows, int columns)
+        public SparseMatrix(int Rows, int Columns)
         {
-            this.rows = rows;
-            this.columns = columns;
+            this.Rows = Rows;
+            this.Columns = Columns;
 
-            IA = new LinkedList<int>(new int[rows + 1]);
-            JA = new LinkedList<int?>(new int?[] { null });
-            AN = new LinkedList<double?>(new double?[] { null });
+            Elements = new LinkedList<Element<int, double>>(new Element<int, double>[] { null });
+            IA = new LinkedListNode<Element<int, double>>[Rows + 1];
+            //IAIndexes = new int[Rows + 1];
+            for (int i = 1; i <= Rows + 1; ++i)
+            {
+                //IAIndexes[i + offset] = 1;
+                IA[i + offset] = Elements.First;
+            }
         }
 
-        public double? GetElement(int i, int j)  // O(rows+columns)
+        public double GetElement(int i, int j)  // O(columns)
         {
-            if ((i>=rows) || (j>=columns) || (i<0) || (j<0)) throw new Exception("Выход за пределы матрицы");
+            if ((i > Rows) || (j > Columns) || (i <= 0) || (j <= 0)) throw new Exception("Выход за пределы матрицы");
 
-            LinkedListNode<int> IANode = IA.First;
-            for (int k = 0; k < i; ++k)  // O(rows)
+            LinkedListNode<Element<int, double>> first = IA[i + offset];
+            LinkedListNode<Element<int, double>> last = IA[i+ 1 + offset].Previous;
+
+            if ((last == null) || (first.Previous == last)) return 0; // в строке нет ненулевых элементов
+
+            //int? amount = last.Value.ColumnIndex - first.Value.ColumnIndex + 1; // кол-во ненулевых элементов в строке
+
+            for (LinkedListNode<Element<int, double>> current = first; current.Previous != last; current = current.Next) // O(columns)
             {
-                IANode = IANode.Next;
+                if (current.Value.ColumnIndex == j)
+                {
+                    return current.Value.ElemValue;
+                } 
+                else if (current.Value.ColumnIndex > j)
+                {
+                    return 0;
+                }
             }
-            int first = IANode.Value;
-            int last = IANode.Next.Value - 1;
-
-            if (first > last) return 0; // в строке нет ненулевых элементов
-
-            int amount = last - first + 1; // кол-во ненулевых элементов в строке
-            LinkedListNode<int?> JANode = JA.First;
-            LinkedListNode<double?> ANNode = AN.First;
-            for (int k = 0; k < first; ++k)       //
-            {                                     //
-                JANode = JANode.Next;             //
-                ANNode = ANNode.Next;             //
-            }                                     //
-            for (int k = first; k <= last; ++k)   //
-            {                                     //  O(columns)
-                if (JANode.Value == j) {          //  
-                    return ANNode.Value;          //
-                }                                 //
-                JANode = JANode.Next;             //
-                ANNode = ANNode.Next;             //
-            }                                     //
 
             return 0;
         }
 
         public void AssignElement(int i, int j, double value) // O(rows+columns)
         {
-            if ((i >= rows) || (j >= columns) || (i < 0) || (j < 0)) throw new Exception("Выход за пределы матрицы");
+            if ((i > Rows) || (j > Columns) || (i <= 0) || (j <= 0)) throw new Exception("Выход за пределы матрицы");
 
-            LinkedListNode<int> IANode = IA.First;
-            for (int k = 0; k < i; ++k)  // O(rows)
+            LinkedListNode<Element<int, double>> first = IA[i + offset];
+            LinkedListNode<Element<int, double>> last = IA[i + 1 + offset].Previous;
+
+            //int? amount = last.Value.ColumnIndex - first.Value.ColumnIndex + 1; // кол-во ненулевых элементов в строке
+
+            for (LinkedListNode<Element<int, double>> current = first; (last == null) || (current.Previous != last.Next); current = current.Next) // O(columns)
             {
-                IANode = IANode.Next;
-            }
-
-            int first = IANode.Value;
-            int last = IANode.Next.Value - 1;
-            int amount = last - first + 1;
-
-            LinkedListNode<int?> JANode = JA.First;
-            LinkedListNode<double?> ANNode = AN.First;
-            for (int k = 0; k < first; ++k)        //
-            {                                      //
-                JANode = JANode.Next;              //
-                ANNode = ANNode.Next;              //  O(rows+columns)
-            }                                      //
-            for (int k = first; k <= last+1; ++k)  //
-            {
-                if ((k <= last) && (JANode.Value == j))
+                if ((current.Previous != last) && (current.Value.ColumnIndex == j))
                 {
                     if (value != 0)  // reassign element
                     {
-                        ANNode.Value = value;
-                    } else           // delete element
+                        current.Value.ElemValue = value;
+                    }
+                    else             // delete element
                     {
-                        JA.Remove(JANode);
-                        AN.Remove(ANNode);
+                        for (int k = i + 1; (k <= Rows + 1) && (IA[k + offset] == current); ++k)  //
+                        {                                                                         //
+                            IA[k + offset] = IA[k + offset].Next;                                 //
+                        }                                                                         // смещаем все ссылки, которые указывают на удаляемый элемент
+                        for (int k = i; (k > 0) && (IA[k + offset] == current); --k)              // O(rows)
+                        {                                                                         //
+                            IA[k + offset] = IA[k + offset].Next;                                 //
+                        }                                                                         //
 
-                        for (IANode = IANode.Next; IANode != null; IANode = IANode.Next) // O(rows)
+                        Elements.Remove(current);
+
+                        /*for (int k = i + 1; k <= Rows + 1; ++k)  // индексы
                         {
-                            --IANode.Value;
-                        }
+                            --IAIndexes[k + offset];
+                        }*/
                     }
                     break;
                 }
-                if ((k == last+1) || (JANode.Value > j))  // add element
+                if ((last == null) || (current.Previous == last) || (current.Value.ColumnIndex > j))  // add element
                 {
-                    JA.AddBefore(JANode, j);
-                    AN.AddBefore(ANNode, value);
+                    Elements.AddBefore(current, new Element<int, double>(j, value));
 
-                    for (IANode = IANode.Next; IANode != null; IANode = IANode.Next)  // O(rows)
-                    {
-                        ++IANode.Value;
+                    for (int k = i; (k >= 1) && (IA[k + offset] == current); --k)  // если в i-й строке новый первый элемент => смещаем ссылки
+                    {                                                              // O(rows)
+                        IA[k + offset] = IA[k + offset].Previous;
                     }
+
+                    /*for (int k = i + 1; k <= Rows + 1; ++k)   // индексы
+                    {
+                        ++IAIndexes[k + offset];
+                    }*/
                     break;
                 }
-
-                JANode = JANode.Next;
-                ANNode = ANNode.Next;
             }
+
         }
 
         public void Print()  // slow
         {
-            for (int i = 0; i < rows; ++i)
+            for (int i = 1; i <= Rows; ++i)
             {
-                for (int j = 0; j < columns; ++j)
+                for (int j = 1; j <= Columns; ++j)
                 {
                     Console.Write(GetElement(i, j) + " ");
                 }
                 Console.WriteLine();
+            }
+        }
+
+        public void PrintStorage()
+        {
+            Console.WriteLine("Storage: ");
+            /*Console.Write("IAIndexes: ");
+            for (int i = 1; i <= Rows + 1; ++i)
+            {
+                Console.Write(IAIndexes[i + offset] + " ");
+            }
+            Console.WriteLine();*/
+            Console.Write("IA: ");
+            for (int i = 1; i <= Rows + 1; ++i)
+            {
+                LinkedListNode<Element<int, double>> node = IA[i + offset];
+                int count = 1;
+                for (LinkedListNode<Element<int, double>> current = Elements.First; current != node; current = current.Next)
+                {
+                    ++count;
+                }
+                Console.Write(count + " ");
+            }
+            Console.WriteLine();
+            Console.Write("JA: ");
+            for (LinkedListNode<Element<int, double>> current = Elements.First; current != null; current = current.Next)
+            {
+                if (current.Value != null)
+                {
+                    Console.Write(current.Value.ColumnIndex + " ");
+                } else
+                {
+                    Console.Write("N ");
+                }
+            }
+            Console.WriteLine();
+            Console.Write("AN: ");
+            for (LinkedListNode<Element<int, double>> current = Elements.First; current != null; current = current.Next)
+            {
+                if (current.Value != null)
+                {
+                    Console.Write(current.Value.ElemValue + " ");
+                }
+                else
+                {
+                    Console.Write("N ");
+                }
+            }
+            Console.WriteLine();
+        }
+
+        // Вспомогательные классы
+
+        public class Element<stype, vtype>  // пара индекс_столбца - значение
+        {
+            public stype ColumnIndex { get; set; }  // JA[i]
+            public vtype ElemValue { get; set; }    // AN[i]
+
+            public Element(stype ColumnIndex, vtype ElemValue)
+            {
+                this.ColumnIndex = ColumnIndex;
+                this.ElemValue = ElemValue;
             }
         }
     }
