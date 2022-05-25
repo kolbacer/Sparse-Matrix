@@ -11,6 +11,8 @@ namespace Sparse_Matrix
     {
         static void Main(string[] args)
         {
+            System.Threading.Thread.CurrentThread.CurrentCulture = new System.Globalization.CultureInfo("en-US");
+
             SparseMatrix matrix = new SparseMatrix(3, 10);
 
             matrix.AssignElement(1, 3, 1);
@@ -82,6 +84,18 @@ namespace Sparse_Matrix
             {
                 Console.Write(LUP.P[i - 1] + " ");
             }
+            Console.WriteLine();
+
+            Console.WriteLine();
+            Console.WriteLine("Ly=b");
+            SparseMatrix.SparseVector b = new SparseMatrix.SparseVector(new vtype[] { -46, 53, -62 });
+            Console.Write("b = ");
+            b.Print();
+
+            Console.WriteLine();
+            Console.WriteLine("x = ");
+            SparseMatrix.SparseVector x = SparseMatrix.SolveSLAE(LUP, b);
+            x.Print();
         }
     }
 
@@ -551,6 +565,132 @@ namespace Sparse_Matrix
             matrix.transposedIsRelevant = false;
         }
 
+        public static SparseVector MultiplyMatrixByVector(SparseMatrix matrix, SparseVector vector)  // *where vector is column
+        {                                                                                            // O(rows*[кол-во ненулевых вектора] + кол-во ненулевых матрицы)
+            if (matrix.Columns != vector.Length) throw new Exception("Кол-во столбцов матрицы != длина вектора");
+
+            SparseVector result = new SparseVector();
+            result.isColumn = true;
+
+            LinkedListNode<Element> first2 = vector.Elements.First;
+            LinkedListNode<Element> last2 = vector.Elements.Last.Previous;
+            if (last2 == null)
+            {
+                result.Length = vector.Length;
+                return result;
+            }
+
+            for (stype i = 1; i <= matrix.Rows; ++i)
+            {
+                LinkedListNode<Element> first1 = matrix.IA[i + offset];
+                LinkedListNode<Element> last1 = matrix.IA[i + 1 + offset].Previous;
+
+                if ((last1 == null) || (first1 == last1.Next))  // нет ненулевых
+                {
+                    result.AddLast(0);
+                    continue;
+                }
+
+                LinkedListNode<Element> current1 = first1;
+                LinkedListNode<Element> current2 = first2;
+                vtype sum = 0;
+
+                while ((current1 != last1.Next) || (current2 != last2.Next))
+                {
+                    if ((current2 == last2.Next) || ((current1 != last1.Next) && (current1.Value.Index < current2.Value.Index)))
+                        current1 = current1.Next;
+                    else if ((current1 == last1.Next) || ((current2 != last2.Next) && (current2.Value.Index < current1.Value.Index)))
+                        current2 = current2.Next;
+                    else
+                    {
+                        sum += (current1.Value.ElemValue * current2.Value.ElemValue);
+                        current1 = current1.Next;
+                    }
+                }
+
+                result.AddLast(sum);
+            }
+
+            return result;
+        }
+
+        public static SparseVector SolveSLAE(LUP LUP, SparseVector b)
+        {
+            SparseVector y = SolveLy_b(LUP.L, b, LUP.P);
+            SparseVector x = SolveUx_y(LUP.U, y);
+
+            return x;
+        }
+
+        public static SparseVector SolveLy_b(SparseMatrix L, SparseVector _b, stype[] P = null)
+        {
+            if (L.Columns != _b.Length) throw new Exception("Кол-во столбцов матрицы != длина вектора");
+
+            vtype[] tmp = _b.ToFilled();
+            vtype[] b = new vtype[tmp.Length];
+            SparseVector y = new SparseVector();
+            y.isColumn = true;
+
+            if (P != null)
+            {
+                for (stype i = 1; i <= b.Length; ++i)
+                    b[i + offset] = tmp[P[i + offset] + offset];
+            }
+            else
+            {
+                b = tmp;
+            }
+            tmp = null;
+
+            for (stype i = 1; i <= L.Rows; ++i)
+            {
+                LinkedListNode<Element> first = L.IA[i + offset];
+                LinkedListNode<Element> last = L.IA[i + 1 + offset].Previous.Previous;
+                vtype sum = 0;
+
+                if (last == null)
+                {
+                    y.AddLast(b[i + offset]);
+                    continue;
+                }
+
+                for (LinkedListNode<Element> current = first; current != last.Next; current = current.Next)
+                    sum += current.Value.ElemValue * b[current.Value.Index + offset];
+
+                b[i + offset] -= sum;
+                y.AddLast(b[i + offset]);
+            }
+
+            return y;
+        }
+
+        public static SparseVector SolveUx_y(SparseMatrix U, SparseVector _y)
+        {
+            if (U.Columns != _y.Length) throw new Exception("Кол-во столбцов матрицы != длина вектора");
+
+            vtype[] y = _y.ToFilled();
+            SparseVector x = new SparseVector();
+            x.isColumn = true;
+
+            for (stype i = y.Length; i >= 1; --i)
+            {
+                LinkedListNode<Element> first = U.IA[i + offset];
+                LinkedListNode<Element> last = U.IA[i + 1 + offset].Previous;
+                vtype sum = 0;
+
+                if (first == last.Next) throw new Exception("Матрица вырожденная");
+
+                for (LinkedListNode<Element> current = first.Next; current != last.Next; current = current.Next)
+                    sum += current.Value.ElemValue * y[current.Value.Index + offset];
+
+                y[i + offset] = (y[i + offset] - sum) / first.Value.ElemValue;
+                x.Elements.AddBefore(x.Elements.First, new Element(i, y[i + offset]));
+                x.Length++;
+            }
+
+            return x;
+        }
+
         public void Print()  // slow
         {
             for (stype i = 1; i <= Rows; ++i)
@@ -801,6 +941,81 @@ namespace Sparse_Matrix
                 this.L = L;
                 this.U = U;
                 this.P = P;
+            }
+        }
+
+        public class SparseVector
+        {
+            public LinkedList<Element> Elements = new LinkedList<Element>(new Element[] { null });
+            public stype Length { set; get; } = 0;
+            public stype NumberOfNonzero { get { return Elements.Count - 1; } }
+            public bool isColumn = false;
+
+            public SparseVector() { }
+
+            public SparseVector(IEnumerable<vtype> collection)
+            {
+                IEnumerator<vtype> it = collection.GetEnumerator();
+
+                if (!it.MoveNext()) return;
+                it.Reset();
+                it.MoveNext();
+
+                bool isNotEnd = true;
+                for (stype i = 1; isNotEnd; ++i)
+                {
+                    vtype Value = it.Current;
+                    if (Value != 0) Elements.AddBefore(Elements.Last, new Element(i, Value));
+                    ++Length;
+                    isNotEnd = it.MoveNext();
+                }
+            }
+
+            public void AddLast(vtype x)
+            {
+                if (x != 0)
+                    Elements.AddBefore(Elements.Last, new Element(Length + 1, x));
+                ++Length;
+            }
+
+            public vtype[] ToFilled()
+            {
+                vtype[] array = new vtype[Length];
+
+                LinkedListNode<Element> first = Elements.First;
+                LinkedListNode<Element> current = first;
+
+                for (int i = 1; i <= Length; ++i)
+                {
+                    if ((current == Elements.Last) || (i < current.Value.Index))
+                        array[i + offset] = 0;
+                    else if (i == current.Value.Index)
+                    {
+                        array[i + offset] = current.Value.ElemValue;
+                        current = current.Next;
+                    }
+                }
+
+                return array;
+            }
+
+            public void Print()
+            {
+                LinkedListNode<Element> first = Elements.First;
+                LinkedListNode<Element> current = first;
+
+                for (int i = 1; i <= Length; ++i)
+                {
+                    if ((current == Elements.Last) || (i < current.Value.Index))
+                        Console.Write(0 + " ");
+                    else if (i == current.Value.Index)
+                    {
+                        Console.Write(current.Value.ElemValue + " ");
+                        current = current.Next;
+                    }
+                    if (isColumn) Console.WriteLine();
+                }
+                Console.WriteLine();
             }
         }
     }
