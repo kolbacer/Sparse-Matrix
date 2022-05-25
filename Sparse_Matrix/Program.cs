@@ -96,6 +96,29 @@ namespace Sparse_Matrix
             Console.WriteLine("x = ");
             SparseMatrix.SparseVector x = SparseMatrix.SolveSLAE(LUP, b);
             x.Print();
+
+            //
+
+            Console.WriteLine();
+            string superfile = @"C:\Users\pc\source\repos\NIR\test\matrix1.txt";
+            SparseMatrix supermatrix = SparseMatrix.ReadFromFile(superfile);
+            supermatrix.Print();
+            Console.WriteLine();
+            Console.WriteLine("LUP: ");
+            Console.WriteLine();
+            Console.WriteLine("L:");
+            SparseMatrix.LUP LUP1 = supermatrix.LUPdecompose();
+            LUP1.L.Print();
+            Console.WriteLine();
+            Console.WriteLine("U:");
+            LUP1.U.Print();
+            Console.WriteLine();
+            Console.WriteLine("P:");
+            for (int i = 1; i <= LUP1.P.Length; ++i)
+            {
+                Console.Write(LUP1.P[i - 1] + " ");
+            }
+            Console.WriteLine();
         }
     }
 
@@ -147,7 +170,7 @@ namespace Sparse_Matrix
                 if (current.Value.Index == j)
                 {
                     return current.Value.ElemValue;
-                } 
+                }
                 else if (current.Value.Index > j)
                 {
                     return 0;
@@ -359,7 +382,7 @@ namespace Sparse_Matrix
             {
                 Elements.AddBefore(begin1, new Element(begin2.Value.Index, begin2.Value.ElemValue * coef));
                 for (stype k = augend; (k >= 1) && (IA[k + offset] == begin1); --k)
-                {                                                             
+                {
                     IA[k + offset] = IA[k + offset].Previous;
                 }
                 for (LinkedListNode<Element> current = begin2.Next; (current != null) && (current != end2.Next); current = current.Next)
@@ -382,50 +405,58 @@ namespace Sparse_Matrix
                 current2 = current2.Next;
             }
 
-            //while (((current1 != null) && (end1 != null) && (current1 != end1.Next)) || ((current2 != null) && (current2 != end2.Next)))
-            while ((end1 != null) && (((current1 != null) && (current1 != end1.Next)) || ((current2 != null) && (current2 != end2.Next))))
+            LinkedList<LinkedListNode<Element>> toRemove = new LinkedList<LinkedListNode<Element>>();
+
+            while ((current1 != end1.Next) || (current2 != end2.Next))
             {
-                //while ((current1 != null) && (current1 != end1.Next) && ((current2 == null) || (current2 == end2.Next) || (current1.Value.Index < current2.Value.Index)))
-                while ((current1 != null) && (end1 != null) && (current1 != end1.Next) && ((current2 == null) || (current2 == end2.Next) || (current1.Value.Index < current2.Value.Index)))
-                {
+                if ((current2 == end2.Next) || ((current1 != end1.Next) && (current1.Value.Index < current2.Value.Index)))
                     current1 = current1.Next;
-                }
-                while ((current2 != null) && (end1 != null) && (current2 != end2.Next) && ((current1 == null) || (current1 == end1.Next) || (current2.Value.Index <= current1.Value.Index)))
+                else if ((current1 == end1.Next) || ((current2 != end2.Next) && (current2.Value.Index < current1.Value.Index)))
                 {
-                    if ((current1 == null) || (current1 == end1.Next) || (current2.Value.Index != current1.Value.Index))
+                    if (current1 == end1.Next)
                     {
-                        if (!(Math.Abs(current2.Value.ElemValue * coef) < eps))                 // !!!!!!!!!!!!! 
-                            Elements.AddBefore(current1, new Element(current2.Value.Index, current2.Value.ElemValue * coef));
+                        Elements.AddBefore(current1, new Element(current2.Value.Index, current2.Value.ElemValue * coef));
+                        end1 = current1.Previous;
+                    }
+                    else
+                        Elements.AddBefore(current1, new Element(current2.Value.Index, current2.Value.ElemValue * coef));
+
+                    if (IA[augend + offset] == current1)
+                        IA[augend + offset] = current1.Previous;
+
+                    current2 = current2.Next;
+                }
+                else // if (current1.Vaule.Index == current2.Value.Index)
+                {
+                    if (Math.Abs(current1.Value.ElemValue + (current2.Value.ElemValue * coef)) < eps)      // !!!!!!!!!
+                    {
+                        for (stype k = augend + 1; (k <= Rows + 1) && (IA[k + offset] == current1); ++k)
+                        {
+                            IA[k + offset] = IA[k + offset].Next;
+                        }
+                        for (stype k = augend; (k > 0) && (IA[k + offset] == current1); --k)
+                        {
+                            IA[k + offset] = IA[k + offset].Next;
+                        }
+
+                        toRemove.AddLast(current1);
+
+                        current1 = current1.Next;
+                        //Elements.Remove(current1.Previous);
                     }
                     else
                     {
-                        //if (current1.Value.ElemValue + (current2.Value.ElemValue * coef) == 0)       // удаление элемента
-                        if (Math.Abs(current1.Value.ElemValue + (current2.Value.ElemValue * coef)) < eps)      // !!!!!!!!!
-                        {
-                            for (stype k = augend + 1; (k <= Rows + 1) && (IA[k + offset] == current1); ++k)
-                            {
-                                IA[k + offset] = IA[k + offset].Next;
-                            }
-                            for (stype k = augend; (k > 0) && (IA[k + offset] == current1); --k)
-                            {
-                                IA[k + offset] = IA[k + offset].Next;
-                            }
-
-                            LinkedListNode<Element> toDelete = current1;
-                            current1 = current1.Next;
-                            if (toDelete == end1) end1 = null;  // почему-то если удалять объект, на который ссылается end, он не становится null
-                            Elements.Remove(toDelete);
-                        }
-                        else
-                        {
-                            current1.Value.ElemValue += (current2.Value.ElemValue * coef);
-                        }
+                        current1.Value.ElemValue += (current2.Value.ElemValue * coef);
+                        current1 = current1.Next;
                     }
-
                     current2 = current2.Next;
                 }
             }
 
+            for (LinkedListNode<LinkedListNode<Element>> cur = toRemove.First; cur != null; cur = cur.Next)
+            {
+                Elements.Remove(cur.Value);
+            }
         }
 
         private void CreateTransposed()         // O(кол-во ненулевых элемментов)
@@ -744,7 +775,8 @@ namespace Sparse_Matrix
                 if (current.Value != null)
                 {
                     Console.Write(current.Value.Index + " ");
-                } else
+                }
+                else
                 {
                     Console.Write("N ");
                 }
@@ -849,9 +881,9 @@ namespace Sparse_Matrix
 
                                 firstAdded = true;
                             }
-                        }    
+                        }
                         ++j;
-                    } 
+                    }
                 }
             }
 
