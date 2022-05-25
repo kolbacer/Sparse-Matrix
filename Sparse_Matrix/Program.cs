@@ -7,11 +7,20 @@ namespace Sparse_Matrix
     using stype = Int32;
     using vtype = Double;
 
+    static class Globals
+    {
+        public static string logfilepath = @"C:\Users\pc\source\repos\NIR\test\log.txt";
+        public static StreamWriter sw;
+    }
+
     class Program
     {
         static void Main(string[] args)
         {
             System.Threading.Thread.CurrentThread.CurrentCulture = new System.Globalization.CultureInfo("en-US");
+
+            Globals.sw = new StreamWriter(Globals.logfilepath, false);
+            StreamWriter sw = Globals.sw;
 
             SparseMatrix matrix = new SparseMatrix(3, 10);
 
@@ -99,26 +108,29 @@ namespace Sparse_Matrix
 
             //
 
-            Console.WriteLine();
+            sw.WriteLine();
             string superfile = @"C:\Users\pc\source\repos\NIR\test\matrix1.txt";
             SparseMatrix supermatrix = SparseMatrix.ReadFromFile(superfile);
-            supermatrix.Print();
-            Console.WriteLine();
-            Console.WriteLine("LUP: ");
-            Console.WriteLine();
-            Console.WriteLine("L:");
+            supermatrix.PrintToLog();
+            sw.WriteLine();
+            sw.WriteLine("LUP: ");
+            sw.WriteLine();
+            sw.WriteLine("L:");
             SparseMatrix.LUP LUP1 = supermatrix.LUPdecompose();
-            LUP1.L.Print();
-            Console.WriteLine();
-            Console.WriteLine("U:");
-            LUP1.U.Print();
-            Console.WriteLine();
-            Console.WriteLine("P:");
+            LUP1.L.PrintToLog();
+            sw.WriteLine();
+            sw.WriteLine("U:");
+            LUP1.U.PrintToLog();
+            sw.WriteLine();
+            sw.WriteLine("P:");
             for (int i = 1; i <= LUP1.P.Length; ++i)
             {
-                Console.Write(LUP1.P[i - 1] + " ");
+                sw.Write(LUP1.P[i - 1] + " ");
             }
-            Console.WriteLine();
+            sw.WriteLine();
+
+
+            sw.Close();
         }
     }
 
@@ -138,6 +150,7 @@ namespace Sparse_Matrix
         // транспонирование может стать неактуальным
         public stype Rows { get; } = 0;
         public stype Columns { get; private set; } = 0;
+        public stype NumberOfNonzeroElements { get { return Elements.Count - 1; } }
 
         public SparseMatrix(stype Rows, stype Columns)
         {
@@ -265,6 +278,8 @@ namespace Sparse_Matrix
         {
             if (Rows != Columns) throw new Exception("Матрица не квадратная");
 
+            StreamWriter sw = Globals.sw;
+
             stype[] P = new stype[Rows];
             for (stype i = 1; i <= Rows; ++i)
                 P[i + offset] = i;
@@ -283,6 +298,8 @@ namespace Sparse_Matrix
 
             for (stype k = 1; k < Columns; ++k)
             {
+                sw.WriteLine("Iteration " + k);
+
                 Element maxElement = U.FindMaxInColumn(k, k);
                 if (maxElement.ElemValue == 0) throw new Exception("Матрица вырожденная");
                 stype maxRow = maxElement.Index;
@@ -294,6 +311,8 @@ namespace Sparse_Matrix
 
                     SwapRows(U, k, maxRow);
                     SwapRows(L, k, maxRow);
+
+                    sw.WriteLine("SwapRows(" + k + ", " + maxRow + ")");
                 }
 
                 U.CreateTransposed();  // O(кол-во ненулевых элементов)
@@ -311,8 +330,14 @@ namespace Sparse_Matrix
                     stype p = current.Value.Index;
                     current = current.Next;
                     U.AddRows(p, k, -coef);
+
+                    sw.WriteLine("AddRows(" + p + ", " + k + ", " + -coef + ")");
+
                     //U.CreateTransposed();    // вроде не нужно
                 }
+
+                sw.WriteLine("NonZero elements: " + U.NumberOfNonzeroElements);
+                sw.WriteLine();
             }
 
             for (stype i = Rows; i >= 1; --i)
@@ -322,11 +347,13 @@ namespace Sparse_Matrix
                 L.Elements.Remove(L.IA[i + offset].Previous);
             }
 
+            sw.WriteLine();
+
             return new LUP(L, U, P);
         }
 
         public void AddRows(stype augend, stype addend, vtype coef = 1)   // augend - тот, к которому прибавляем, addend - тот, кого прибавляем, coef - коэффициент домножения
-        {                                                                 // проверки на null, потенциально, можно убрать (кроме end != null)
+        {
             if ((augend < 1) || (augend > Rows) || (addend < 1) || (addend > Rows))
             {
                 throw new Exception("Выход за пределы матрицы");
@@ -442,7 +469,6 @@ namespace Sparse_Matrix
                         toRemove.AddLast(current1);
 
                         current1 = current1.Next;
-                        //Elements.Remove(current1.Previous);
                     }
                     else
                     {
@@ -462,6 +488,9 @@ namespace Sparse_Matrix
         private void CreateTransposed()         // O(кол-во ненулевых элемментов)
         {                                       // создает столбцовое представление
             if (transposedIsRelevant) return;
+
+            StreamWriter sw = Globals.sw;
+            sw.WriteLine("CreateTransposed()");
 
             ElementsT = new LinkedList<Element>(new Element[Columns + 1]);
             IAT = new LinkedListNode<Element>[Columns + 1];
@@ -745,6 +774,20 @@ namespace Sparse_Matrix
                     Console.Write(GetElementTransposed(i, j) + " ");
                 }
                 Console.WriteLine();
+            }
+        }
+
+        public void PrintToLog()  // slow
+        {
+            StreamWriter sw = Globals.sw;
+
+            for (stype i = 1; i <= Rows; ++i)
+            {
+                for (stype j = 1; j <= Columns; ++j)
+                {
+                    sw.Write(GetElement(i, j) + " ");
+                }
+                sw.WriteLine();
             }
         }
 
