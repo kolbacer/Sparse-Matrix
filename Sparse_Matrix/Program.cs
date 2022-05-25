@@ -37,11 +37,51 @@ namespace Sparse_Matrix
             Console.WriteLine();
             matrix1.AddRows(2, 1);
             matrix1.AddRows(2, 3);
-            matrix1.AddRows(2, 3, -6);
             matrix1.AddRows(1, 1, 2);
+            matrix1.AddRows(3, 3, 2);
             matrix1.Print();
             Console.WriteLine();
             matrix1.PrintStorage();
+            Console.WriteLine();
+
+            matrix1.PrintTransposed();
+            Console.WriteLine();
+            matrix1.PrintStorageTransposed();
+
+            SparseMatrix.SwapRows(matrix1, 1, 3);
+            matrix1.Print();
+            Console.WriteLine();
+            SparseMatrix.SwapRows(matrix1, 2, 3);
+            matrix1.Print();
+
+            Console.WriteLine();
+            SparseMatrix matrix2 = matrix1.Copy();
+            matrix2.AddRows(1, 2);
+            matrix2.Print();
+            Console.WriteLine();
+            matrix1.Print();
+
+            //
+
+            Console.WriteLine();
+            string filename2 = @"C:\Users\pc\source\repos\NIR\test\text2.txt";
+            SparseMatrix matrix3 = SparseMatrix.ReadFromFile(filename2);
+            matrix3.Print();
+            Console.WriteLine();
+            Console.WriteLine("LUP: ");
+            Console.WriteLine();
+            Console.WriteLine("L:");
+            SparseMatrix.LUP LUP = matrix3.LUPdecompose();
+            LUP.L.Print();
+            Console.WriteLine();
+            Console.WriteLine("U:");
+            LUP.U.Print();
+            Console.WriteLine();
+            Console.WriteLine("P:");
+            for (int i = 1; i <= LUP.P.Length; ++i)
+            {
+                Console.Write(LUP.P[i - 1] + " ");
+            }
         }
     }
 
@@ -50,8 +90,15 @@ namespace Sparse_Matrix
         LinkedList<Element> Elements = new LinkedList<Element>(new Element[] { null });
         LinkedListNode<Element>[] IA = { null };                   // хранит ссылки на элементы списка Elements
         private const stype offset = -1;                           // смещение для итерации по массиву
-        //int[] IAIndexes = new int[] { 1 };  // на всякий случай
+        private const double eps = 1e-10;                          // что считаем нулем
+        //int[] IAIndexes = new int[] { 1 };                       // на всякий случай
 
+        // для транспонированной \ хранение по столбцам
+        LinkedList<Element> ElementsT = new LinkedList<Element>(new Element[] { null });
+        LinkedListNode<Element>[] IAT = { null };
+        private bool transposedIsRelevant = false;   // при различных операциях (перестановка строк и т.д.)
+
+        // транспонирование может стать неактуальным
         public stype Rows { get; } = 0;
         public stype Columns { get; private set; } = 0;
 
@@ -79,15 +126,41 @@ namespace Sparse_Matrix
 
             if ((last == null) || (first.Previous == last)) return 0; // в строке нет ненулевых элементов
 
-            //int? amount = last.Value.ColumnIndex - first.Value.ColumnIndex + 1; // кол-во ненулевых элементов в строке
+            //int? amount = last.Value.Index - first.Value.Index + 1; // кол-во ненулевых элементов в строке
 
             for (LinkedListNode<Element> current = first; current.Previous != last; current = current.Next) // O(columns)
             {
-                if (current.Value.ColumnIndex == j)
+                if (current.Value.Index == j)
                 {
                     return current.Value.ElemValue;
                 } 
-                else if (current.Value.ColumnIndex > j)
+                else if (current.Value.Index > j)
+                {
+                    return 0;
+                }
+            }
+
+            return 0;
+        }
+
+        public vtype GetElementTransposed(stype i, stype j)  // O(columns)
+        {
+            if ((i > Columns) || (j > Rows) || (i <= 0) || (j <= 0)) throw new Exception("Выход за пределы матрицы");
+
+            LinkedListNode<Element> first = IAT[i + offset];
+            LinkedListNode<Element> last = IAT[i + 1 + offset].Previous;
+
+            if ((last == null) || (first.Previous == last)) return 0; // в строке нет ненулевых элементов
+
+            //int? amount = last.Value.Index - first.Value.Index + 1; // кол-во ненулевых элементов в строке
+
+            for (LinkedListNode<Element> current = first; current.Previous != last; current = current.Next) // O(columns)
+            {
+                if (current.Value.Index == j)
+                {
+                    return current.Value.ElemValue;
+                }
+                else if (current.Value.Index > j)
                 {
                     return 0;
                 }
@@ -103,11 +176,11 @@ namespace Sparse_Matrix
             LinkedListNode<Element> first = IA[i + offset];
             LinkedListNode<Element> last = IA[i + 1 + offset].Previous;
 
-            //int? amount = last.Value.ColumnIndex - first.Value.ColumnIndex + 1; // кол-во ненулевых элементов в строке
+            //int? amount = last.Value.Index - first.Value.Index + 1; // кол-во ненулевых элементов в строке
 
             for (LinkedListNode<Element> current = first; (last == null) || (current.Previous != last.Next); current = current.Next) // O(columns)
             {
-                if ((current.Previous != last) && (current.Value.ColumnIndex == j))
+                if ((current.Previous != last) && (current.Value.Index == j))
                 {
                     if (value != 0)  // reassign element
                     {
@@ -133,7 +206,7 @@ namespace Sparse_Matrix
                     }
                     break;
                 }
-                if ((last == null) || (current.Previous == last) || (current.Value.ColumnIndex > j))  // add element
+                if ((last == null) || (current.Previous == last) || (current.Value.Index > j))  // add element
                 {
                     Elements.AddBefore(current, new Element(j, value));
 
@@ -149,7 +222,70 @@ namespace Sparse_Matrix
                     break;
                 }
             }
+        }
 
+        public LUP LUPdecompose()
+        {
+            if (Rows != Columns) throw new Exception("Матрица не квадратная");
+
+            stype[] P = new stype[Rows];
+            for (stype i = 1; i <= Rows; ++i)
+                P[i + offset] = i;
+
+            SparseMatrix L = new SparseMatrix(Rows, Columns);              // vtype должен быть с плавающей точкой
+            L.Elements = new LinkedList<Element>(new Element[Rows + 1]);
+            L.IA = new LinkedListNode<Element>[Rows + 1];
+            LinkedListNode<Element> cur = L.Elements.First;
+            for (stype i = 1; i <= Rows + 1; ++i)
+            {
+                L.IA[i + offset] = cur;
+                cur = cur.Next;
+            }
+
+            SparseMatrix U = this.Copy();
+
+            for (stype k = 1; k < Columns; ++k)
+            {
+                Element maxElement = U.FindMaxInColumn(k, k);
+                if (maxElement.ElemValue == 0) throw new Exception("Матрица вырожденная");
+                stype maxRow = maxElement.Index;
+                if (maxRow != k)
+                {
+                    stype temp = P[k + offset];
+                    P[k + offset] = P[maxRow + offset];
+                    P[maxRow + offset] = temp;
+
+                    SwapRows(U, k, maxRow);
+                    SwapRows(L, k, maxRow);
+                }
+
+                U.CreateTransposed();  // O(кол-во ненулевых элементов)
+                LinkedListNode<Element> first = U.IAT[k + offset];
+                LinkedListNode<Element> last = U.IAT[k + 1 + offset].Previous;
+                while ((first.Value.Index <= k) && (first != last.Next))
+                    first = first.Next;
+                if (first == last.Next) continue;
+
+                vtype valueToDivide = U.IA[k + offset].Value.ElemValue;    // НЕНАДЕЖНО!! (потому что в k-ой строке могут вместо нулей в начале оказаться маленькие числа)
+                for (LinkedListNode<Element> current = first; current != last.Next;)
+                {
+                    vtype coef = current.Value.ElemValue / valueToDivide;
+                    L.Elements.AddBefore(L.IA[current.Value.Index + 1 + offset], new Element(k, coef));
+                    stype p = current.Value.Index;
+                    current = current.Next;
+                    U.AddRows(p, k, -coef);
+                    //U.CreateTransposed();    // вроде не нужно
+                }
+            }
+
+            for (stype i = Rows; i >= 1; --i)
+            {
+                L.Elements.AddBefore(L.IA[i + 1 + offset], new Element(i, 1));
+                L.IA[i + offset] = L.IA[i + offset].Next;
+                L.Elements.Remove(L.IA[i + offset].Previous);
+            }
+
+            return new LUP(L, U, P);
         }
 
         public void AddRows(stype augend, stype addend, vtype coef = 1)   // augend - тот, к которому прибавляем, addend - тот, кого прибавляем, coef - коэффициент домножения
@@ -207,14 +343,14 @@ namespace Sparse_Matrix
 
             if ((end1 == null) || (end1 == begin1.Previous))
             {
-                Elements.AddBefore(begin1, new Element(begin2.Value.ColumnIndex, begin2.Value.ElemValue * coef));
+                Elements.AddBefore(begin1, new Element(begin2.Value.Index, begin2.Value.ElemValue * coef));
                 for (stype k = augend; (k >= 1) && (IA[k + offset] == begin1); --k)
                 {                                                             
                     IA[k + offset] = IA[k + offset].Previous;
                 }
                 for (LinkedListNode<Element> current = begin2.Next; (current != null) && (current != end2.Next); current = current.Next)
                 {
-                    Elements.AddBefore(IA[augend + 1 + offset], new Element(current.Value.ColumnIndex, current.Value.ElemValue * coef));
+                    Elements.AddBefore(IA[augend + 1 + offset], new Element(current.Value.Index, current.Value.ElemValue * coef));
                 }
                 return;
             }
@@ -222,9 +358,9 @@ namespace Sparse_Matrix
             LinkedListNode<Element> current1 = begin1;
             LinkedListNode<Element> current2 = begin2;
 
-            if (begin2.Value.ColumnIndex < begin1.Value.ColumnIndex)   // новый 1ый элемент
+            if (begin2.Value.Index < begin1.Value.Index)   // новый 1ый элемент
             {
-                Elements.AddBefore(begin1, new Element(begin2.Value.ColumnIndex, begin2.Value.ElemValue * coef));
+                Elements.AddBefore(begin1, new Element(begin2.Value.Index, begin2.Value.ElemValue * coef));
                 for (stype k = augend; (k >= 1) && (IA[k + offset] == begin1); --k)
                 {
                     IA[k + offset] = IA[k + offset].Previous;
@@ -232,21 +368,25 @@ namespace Sparse_Matrix
                 current2 = current2.Next;
             }
 
-            while (((current1 != null) && (end1 != null) && (current1 != end1.Next)) || ((current2 != null) && (current2 != end2.Next)))
+            //while (((current1 != null) && (end1 != null) && (current1 != end1.Next)) || ((current2 != null) && (current2 != end2.Next)))
+            while ((end1 != null) && (((current1 != null) && (current1 != end1.Next)) || ((current2 != null) && (current2 != end2.Next))))
             {
-                while ((current1 != null) && (current1 != end1.Next) && ((current2 == null) || (current2 == end2.Next) || (current1.Value.ColumnIndex < current2.Value.ColumnIndex)))
+                //while ((current1 != null) && (current1 != end1.Next) && ((current2 == null) || (current2 == end2.Next) || (current1.Value.Index < current2.Value.Index)))
+                while ((current1 != null) && (end1 != null) && (current1 != end1.Next) && ((current2 == null) || (current2 == end2.Next) || (current1.Value.Index < current2.Value.Index)))
                 {
                     current1 = current1.Next;
                 }
-                while ((current2 != null) && (end1 != null) && (current2 != end2.Next) && ((current1 == null) || (current1 == end1.Next) || (current2.Value.ColumnIndex <= current1.Value.ColumnIndex)))
+                while ((current2 != null) && (end1 != null) && (current2 != end2.Next) && ((current1 == null) || (current1 == end1.Next) || (current2.Value.Index <= current1.Value.Index)))
                 {
-                    if ((current1 == null) || (current1 == end1.Next) || (current2.Value.ColumnIndex != current1.Value.ColumnIndex))
+                    if ((current1 == null) || (current1 == end1.Next) || (current2.Value.Index != current1.Value.Index))
                     {
-                        Elements.AddBefore(current1, new Element(current2.Value.ColumnIndex, current2.Value.ElemValue * coef));
+                        if (!(Math.Abs(current2.Value.ElemValue * coef) < eps))                 // !!!!!!!!!!!!! 
+                            Elements.AddBefore(current1, new Element(current2.Value.Index, current2.Value.ElemValue * coef));
                     }
                     else
                     {
-                        if (current1.Value.ElemValue + (current2.Value.ElemValue * coef) == 0)       // удаление элемента
+                        //if (current1.Value.ElemValue + (current2.Value.ElemValue * coef) == 0)       // удаление элемента
+                        if (Math.Abs(current1.Value.ElemValue + (current2.Value.ElemValue * coef)) < eps)      // !!!!!!!!!
                         {
                             for (stype k = augend + 1; (k <= Rows + 1) && (IA[k + offset] == current1); ++k)
                             {
@@ -274,6 +414,143 @@ namespace Sparse_Matrix
 
         }
 
+        private void CreateTransposed()         // O(кол-во ненулевых элемментов)
+        {                                       // создает столбцовое представление
+            if (transposedIsRelevant) return;
+
+            ElementsT = new LinkedList<Element>(new Element[Columns + 1]);
+            IAT = new LinkedListNode<Element>[Columns + 1];
+            LinkedListNode<Element> current = ElementsT.First;
+            for (stype i = 1; i <= Columns + 1; ++i)     // C# LinkedList не поддерживает конкатенацию, поэтому все будем делать в одном списке
+            {
+                IAT[i + offset] = current;
+                current = current.Next;
+            }
+
+            for (stype i = 1; i <= Rows; ++i)
+            {
+                LinkedListNode<Element> first = IA[i + offset];
+                LinkedListNode<Element> last = IA[i + 1 + offset].Previous;
+
+                for (current = first; current != last.Next; current = current.Next)
+                {
+                    ElementsT.AddBefore(IAT[current.Value.Index + 1 + offset], new Element(i, current.Value.ElemValue));
+                }
+            }
+
+            for (stype i = Columns; i >= 1; --i)
+            {
+                IAT[i + offset] = IAT[i + offset].Next;
+                ElementsT.Remove(IAT[i + offset].Previous);
+            }
+
+            //transposedIsRelevant = true;
+        }
+
+        public SparseMatrix Copy()        // O(кол-во элементов)
+        {
+            SparseMatrix newMatrix = new SparseMatrix(Rows, Columns);
+
+            stype i = 1;
+            LinkedListNode<Element> first = IA[1 + offset];
+            LinkedListNode<Element> last = IA[Rows + 1 + offset].Previous;
+
+            for (LinkedListNode<Element> current = first; current != last.Next; current = current.Next)
+            {
+                newMatrix.Elements.AddBefore(newMatrix.Elements.Last, new Element(current.Value.Index, current.Value.ElemValue));
+                if (IA[i + offset] == current)
+                {
+                    newMatrix.IA[i + offset] = newMatrix.Elements.Last.Previous;
+                    ++i;
+                }
+            }
+
+            return newMatrix;
+        }
+
+        private Element FindMaxInColumn(stype column, stype startRow = 0, stype endRow = 0)  // max по модулю
+        {
+            if (startRow == 0) startRow = 1;
+            if (endRow == 0) endRow = Rows;
+            CreateTransposed();
+
+            LinkedListNode<Element> first = IAT[column + offset];
+            LinkedListNode<Element> last = IAT[column + 1 + offset].Previous;
+            stype curRow = first.Value.Index;
+            LinkedListNode<Element> curNode = first;
+
+            Element maxElement = null;
+            while ((curRow <= endRow) && (curNode != last.Next))
+            {
+                if ((curRow >= startRow) && ((maxElement == null) || (Math.Abs(maxElement.ElemValue) < Math.Abs(curNode.Value.ElemValue))))
+                    maxElement = curNode.Value;
+
+                curNode = curNode.Next;
+                if (curNode != last.Next)
+                    curRow = curNode.Value.Index;
+            }
+
+            return maxElement;
+        }
+
+        public static void SwapRows(SparseMatrix matrix, stype row1, stype row2)             // работает за O(кол-во ненулевых элементов)
+        {                                                                                    // ПОТОМУ ЧТО LinkedList'ы НЕЛЬЗЯ ОБЪЕДИНЯТЬ!!!!!!
+            if ((row1 < 1) || (row1 > matrix.Rows) || (row2 < 1) || (row2 > matrix.Rows))
+                throw new Exception("Выход за пределы матрицы");
+
+            if (row1 == row2) return;
+
+            if (row1 > row2)
+            {
+                stype temp = row1;
+                row1 = row2;
+                row2 = temp;
+            }
+
+            LinkedList<Element> newElements = new LinkedList<Element>(new Element[] { null });
+            LinkedListNode<Element>[] newIA = new LinkedListNode<Element>[matrix.Rows + 1];
+            newIA[matrix.Rows + 1 + offset] = newElements.Last;
+
+            LinkedListNode<Element> first, last, current;
+
+            for (stype i = 1; i <= matrix.Rows; ++i)
+            {
+                if (i == row1)
+                {
+                    first = matrix.IA[row2 + offset];
+                    last = matrix.IA[row2 + 1 + offset].Previous;
+                }
+                else if (i == row2)
+                {
+                    first = matrix.IA[row1 + offset];
+                    last = matrix.IA[row1 + 1 + offset].Previous;
+                }
+                else
+                {
+                    first = matrix.IA[i + offset];
+                    last = matrix.IA[i + 1 + offset].Previous;
+                }
+
+                newIA[i + offset] = newElements.Last;
+                for (current = first; current != last.Next; current = current.Next)
+                {
+                    if (current.Value == null)
+                    {
+                        newElements.AddBefore(newElements.Last, new Element(1, 1));  // bad
+                        newElements.Last.Previous.Value = null;
+                    }
+                    else
+                        newElements.AddBefore(newElements.Last, new Element(current.Value.Index, current.Value.ElemValue));
+                    if (current == first)
+                        newIA[i + offset] = newElements.Last.Previous;
+                }
+            }
+
+            matrix.IA = newIA;
+            matrix.Elements = newElements;
+            matrix.transposedIsRelevant = false;
+        }
+
         public void Print()  // slow
         {
             for (stype i = 1; i <= Rows; ++i)
@@ -281,6 +558,20 @@ namespace Sparse_Matrix
                 for (stype j = 1; j <= Columns; ++j)
                 {
                     Console.Write(GetElement(i, j) + " ");
+                }
+                Console.WriteLine();
+            }
+        }
+
+        public void PrintTransposed()  // slow
+        {
+            CreateTransposed();
+
+            for (stype i = 1; i <= Columns; ++i)
+            {
+                for (stype j = 1; j <= Rows; ++j)
+                {
+                    Console.Write(GetElementTransposed(i, j) + " ");
                 }
                 Console.WriteLine();
             }
@@ -312,7 +603,7 @@ namespace Sparse_Matrix
             {
                 if (current.Value != null)
                 {
-                    Console.Write(current.Value.ColumnIndex + " ");
+                    Console.Write(current.Value.Index + " ");
                 } else
                 {
                     Console.Write("N ");
@@ -334,9 +625,58 @@ namespace Sparse_Matrix
             Console.WriteLine();
         }
 
+        public void PrintStorageTransposed()
+        {
+            Console.WriteLine("Storage Transposed: ");
+            /*Console.Write("IAIndexes: ");
+            for (int i = 1; i <= Rows + 1; ++i)
+            {
+                Console.Write(IAIndexes[i + offset] + " ");
+            }
+            Console.WriteLine();*/
+            Console.Write("IAT: ");
+            for (stype i = 1; i <= Columns + 1; ++i)
+            {
+                LinkedListNode<Element> node = IAT[i + offset];
+                int count = 1;
+                for (LinkedListNode<Element> current = ElementsT.First; current != node; current = current.Next)
+                {
+                    ++count;
+                }
+                Console.Write(count + " ");
+            }
+            Console.WriteLine();
+            Console.Write("JAT: ");
+            for (LinkedListNode<Element> current = ElementsT.First; current != null; current = current.Next)
+            {
+                if (current.Value != null)
+                {
+                    Console.Write(current.Value.Index + " ");
+                }
+                else
+                {
+                    Console.Write("N ");
+                }
+            }
+            Console.WriteLine();
+            Console.Write("ANT: ");
+            for (LinkedListNode<Element> current = ElementsT.First; current != null; current = current.Next)
+            {
+                if (current.Value != null)
+                {
+                    Console.Write(current.Value.ElemValue + " ");
+                }
+                else
+                {
+                    Console.Write("N ");
+                }
+            }
+            Console.WriteLine();
+        }
+
         public static SparseMatrix ReadFromFile(string filepath) // O(rows*columns)
         {                                                        // экономно по памяти
-            FileStream fs = File.OpenRead(filepath);
+            FileStream fs = File.OpenRead(filepath);             // Bug: нужен символ после последнего числа
 
             stype rows = CountRows(fs);  // O(rows*columns)
 
@@ -440,15 +780,28 @@ namespace Sparse_Matrix
 
         public class Element  // пара индекс_столбца - значение
         {
-            public stype ColumnIndex { get; set; }  // JA[i]
+            public stype Index { get; set; }  // JA[i]
             public vtype ElemValue { get; set; }    // AN[i]
 
-            public Element(stype ColumnIndex, vtype ElemValue)
+            public Element(stype Index, vtype ElemValue)
             {
-                this.ColumnIndex = ColumnIndex;
+                this.Index = Index;
                 this.ElemValue = ElemValue;
             }
         }
 
+        public class LUP
+        {
+            public SparseMatrix L { private set; get; }
+            public SparseMatrix U { private set; get; }
+            public stype[] P { private set; get; }
+
+            public LUP(SparseMatrix L, SparseMatrix U, stype[] P)
+            {
+                this.L = L;
+                this.U = U;
+                this.P = P;
+            }
+        }
     }
 }
