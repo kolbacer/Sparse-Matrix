@@ -26,6 +26,6 @@ namespace Sparse_Matrix.ISparseMatrix
         public void PrintToLog();
         public void PrintStorage();
         public void PrintStorageTransposed();
-        public static SparseMatrix ReadFromFile(string filepath) => throw new NotImplementedException();
+        public static SparseMatrix ReadDenseFromFile(string filepath) => throw new NotImplementedException();
     }
 }

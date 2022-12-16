@@ -2,6 +2,7 @@
 using System.IO;
 using System.Collections.Generic;
 using Sparse_Matrix.ISparseMatrix;
+using IOutils;
 
 namespace Sparse_Matrix.SparseMatrix_CSR
 {
@@ -13,7 +14,7 @@ namespace Sparse_Matrix.SparseMatrix_CSR
         LinkedList<Element> Elements = new LinkedList<Element>(new Element[] { null });
         LinkedListNode<Element>[] IA = { null };                   // хранит ссылки на элементы списка Elements
         private const stype offset = -1;                           // смещение для итерации по массиву
-        private const double eps = 1e-10;                          // что считаем нулем
+        private const double eps = Globals.eps;                    // что считаем нулем
         //int[] IAIndexes = new int[] { 1 };                       // на всякий случай
 
         // для транспонированной \ хранение по столбцам
@@ -789,99 +790,49 @@ namespace Sparse_Matrix.SparseMatrix_CSR
             Console.WriteLine();
         }
 
-        public static SparseMatrix ReadFromFile(string filepath) // O(rows*columns)
-        {                                                        // экономно по памяти
-            FileStream fs = File.OpenRead(filepath);             // Bug: нужен символ после последнего числа
+        /// <summary>
+        /// Читает матрицу в обычном виде из файла.
+        /// Первые 2 числа - количество строк и столбцов.
+        /// </summary>
+        public static SparseMatrix ReadDenseFromFile(string filepath)  // O(rows*columns)
+        {                                                              // экономно по памяти
+            FileStream fs = File.OpenRead(filepath);
 
-            stype rows = CountRows(fs);  // O(rows*columns)
+            Scanner fileScanner = new Scanner(fs);
 
-            SparseMatrixCSR matrix = new SparseMatrixCSR(rows, 0);
+            stype rows = stype.Parse(fileScanner.NextToken());
+            stype cols = stype.Parse(fileScanner.NextToken());
 
-            for (stype i = 1; (i <= rows) && (fs.Position != fs.Length); ++i) // O(rows*columns)
+            SparseMatrixCSR matrix = new SparseMatrixCSR(rows, cols);
+
+            for (stype i = 1; i <= rows; ++i)
             {
                 matrix.IA[i + 1 + offset] = matrix.IA[i + offset];
 
-                int j = 1;
                 bool firstAdded = false;
-                while (fs.Position != fs.Length)  // O(columns)
+                for (stype j = 1; j <= cols; ++j)
                 {
-                    vtype? x = ReadNextValue(fs);
-                    if (x == null) break;   // переход на следующую строку
-                    else
+                    vtype x = vtype.Parse(fileScanner.NextToken());
+                    if (x != 0)                     // добавление элемента
                     {
-                        if ((i == 1) && (j > matrix.Columns)) matrix.Columns = j;
-                        if (x != 0)                     // добавление элемента
+                        if (firstAdded)
                         {
-                            if (firstAdded)
-                            {
-                                matrix.Elements.AddBefore(matrix.Elements.Last, new Element(j, x.GetValueOrDefault(0)));
-                            }
-                            else
-                            {
-                                matrix.Elements.AddLast(new Element(j, x.GetValueOrDefault(0)));
-                                SwapNodeElements(matrix.Elements.Last, matrix.Elements.Last.Previous);  // чтобы не перекидывать ссылки
-                                matrix.IA[i + 1 + offset] = matrix.Elements.Last;
-
-                                firstAdded = true;
-                            }
+                            matrix.Elements.AddBefore(matrix.Elements.Last, new Element(j, x));
                         }
-                        ++j;
+                        else
+                        {
+                            matrix.Elements.AddLast(new Element(j, x));
+                            SwapNodeElements(matrix.Elements.Last, matrix.Elements.Last.Previous);  // чтобы не перекидывать ссылки
+                            matrix.IA[i + 1 + offset] = matrix.Elements.Last;
+
+                            firstAdded = true;
+                        }
                     }
                 }
             }
-
             fs.Dispose();
 
             return matrix;
-        }
-
-        private static vtype? ReadNextValue(FileStream fs)  // устанавливает курсор на конец следующего слова в строке,
-        {                                                   // либо на начало следующей строки, если очередное слово не найдено
-            byte[] buffer = new byte[256];
-            int i = 0;
-            char? c = (char)fs.ReadByte();
-            for (; (c == ' ' || c == '\t'); c = (char)fs.ReadByte()) ; // пропускаем пробелы и табы
-
-            if (c == '\r') c = (char)fs.ReadByte();
-            if ((c == '\n') || (fs.Position == fs.Length))
-            {
-                return null;
-            }
-
-            for (; (c != '\n') && (c != ' ') && (c != '\t') && (fs.Position != fs.Length); c = (char)fs.ReadByte())
-            {
-                buffer[i] = (byte)c;
-                ++i;
-            }
-            buffer[i] = (byte)'\n';
-            string word = System.Text.Encoding.Default.GetString(buffer);
-
-            if ((c == '\n') || (c == ' ') || (c == '\t'))
-            {
-                fs.Seek(-1, SeekOrigin.Current);
-            }
-
-            return vtype.Parse(word);
-        }
-
-        private static stype CountRows(FileStream fs)    // подсчитывает строки в матрице и возвращается к началу файла
-        {
-            int bufsize = 4;                             // если в первых [bufsize] байтах строки нет символов, кроме пробелов,
-            byte[] buffer = new byte[bufsize];           // то строка считается пустой
-
-            stype rows = 0;
-            while (fs.Position != fs.Length)
-            {
-                fs.Read(buffer, 0, bufsize);
-                string str = System.Text.Encoding.Default.GetString(buffer);
-                if (!string.IsNullOrWhiteSpace(str)) ++rows;
-
-                for (char? c = null; (c != '\n') && (fs.Position != fs.Length); c = (char)fs.ReadByte()) ;
-            }
-
-            fs.Seek(0, SeekOrigin.Begin);
-
-            return rows;
         }
 
         private static void SwapNodeElements(LinkedListNode<Element> x, LinkedListNode<Element> y)
