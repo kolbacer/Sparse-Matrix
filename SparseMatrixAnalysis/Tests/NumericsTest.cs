@@ -9,6 +9,9 @@ using MathNet.Numerics.LinearAlgebra;
 using MathNet.Numerics.LinearAlgebra.Double;
 using MathNet.Numerics.Data.Text;
 using System.Reflection.PortableExecutable;
+using OxyPlot.Series;
+using OxyPlot;
+using SparseMatrixAnalysis.Plots;
 
 namespace SparseMatrixAnalysis.Tests
 {
@@ -16,6 +19,10 @@ namespace SparseMatrixAnalysis.Tests
     {
         public static void Run(string filepath)
         {
+
+            //object locker = new object();
+            //lock (locker)
+            //{
             Matrix<double> matrix = DelimitedReader.Read<double>(filepath, false, " ", true);
 
             Console.WriteLine("[Numerics] LUP decomposing...");
@@ -28,29 +35,10 @@ namespace SparseMatrixAnalysis.Tests
                 resultTime.Minutes,
                 resultTime.Seconds,
                 resultTime.Milliseconds);
-            Console.WriteLine("#######");
-            Console.WriteLine("LUPdecompose time: " + elapsedTime);
-            Console.WriteLine("#######");
+            Console.WriteLine("[Numerics] LUPdecompose time: " + elapsedTime);
+            //}
 
-            object locker = new object();
-            lock (locker)
-            {
-                Matrix<double> matrix1 = DelimitedReader.Read<double>(filepath, false, " ", true);
-
-                Console.WriteLine("[Numerics] LUP decomposing in lock...");
-                var startTime1 = System.Diagnostics.Stopwatch.StartNew();
-                var LU1 = matrix1.LU();
-                startTime1.Stop();
-                var resultTime1 = startTime1.Elapsed;
-                string elapsedTime1 = String.Format("{0:00}:{1:00}:{2:00}.{3:000}",
-                    resultTime1.Hours,
-                    resultTime1.Minutes,
-                    resultTime1.Seconds,
-                    resultTime1.Milliseconds);
-                Console.WriteLine("#######");
-                Console.WriteLine("LUPdecompose time: " + elapsedTime1);
-                Console.WriteLine("#######");
-            }
+            Results.s2.Items.Add(new BarItem { Value = resultTime.TotalSeconds + resultTime.TotalMilliseconds / 1000 });
         }
     }
 }

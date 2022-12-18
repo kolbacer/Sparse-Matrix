@@ -16,6 +16,7 @@ using System.Windows.Shapes;
 
 using SparseMatrixAnalysis.Tests;
 using OxyPlot.Series;
+using OxyPlot.Axes;
 
 namespace SparseMatrixAnalysis
 {
@@ -27,12 +28,25 @@ namespace SparseMatrixAnalysis
         public MainWindow()
         {
             InitializeComponent();
+            Results.Initialize();
         }
 
         private void RunButton_Click(object sender, RoutedEventArgs e)
         {
+            Results.runs++;
+            Results.categoryAxis.Labels.Add("Матрица " + Results.runs);
+
+            Console.WriteLine($"\n################ Run {Results.runs} ################\n");
+
             MainTest.Run(fileTextBox.Text);
             NumericsTest.Run(fileTextBox.Text);
+
+            if (!Results.isShown)
+            {
+                Results.barplot.Show();
+                Results.isShown = true;
+            }
+            Results.perfomanceComparisonBarView.PerfomanceComparisonModel.InvalidatePlot(true);
         }
 
         private void FileChooser_Click(object sender, RoutedEventArgs e)

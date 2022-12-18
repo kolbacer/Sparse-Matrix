@@ -12,6 +12,7 @@ using SparseMatrixAnalysis.Plots;
 using OxyPlot.Series;
 using OxyPlot.Legends;
 using OxyPlot.Axes;
+using OxyPlot;
 
 namespace SparseMatrixAnalysis.Tests
 {
@@ -35,8 +36,6 @@ namespace SparseMatrixAnalysis.Tests
             Globals.swU = new StreamWriter(logUfilepath, false);
             StreamWriter swU = Globals.swU;
 
-            Console.WriteLine("START");
-
             sw.WriteLine();
             Console.WriteLine("Reading from file...");
             SparseMatrix supermatrix = SparseMatrixCSR.ReadDenseFromFile(filepath);
@@ -57,9 +56,7 @@ namespace SparseMatrixAnalysis.Tests
                 resultTime.Minutes,
                 resultTime.Seconds,
                 resultTime.Milliseconds);
-            Console.WriteLine("#######");
             Console.WriteLine("LUPdecompose time: " + elapsedTime);
-            Console.WriteLine("#######");
 
             LUP1.L.PrintToLog();
             sw.WriteLine();
@@ -178,9 +175,9 @@ namespace SparseMatrixAnalysis.Tests
 
             // !!!!!!!
 
+            Results.s1.Items.Add(new BarItem { Value = resultTime.TotalSeconds + resultTime.TotalMilliseconds / 1000 });
 
-
-            Console.WriteLine("\nEND");
+            Console.WriteLine();
         }
     }
 }

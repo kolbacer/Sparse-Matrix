@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:SparseMatrixAnalysis"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
+        Title="LU-разложение разреженных матриц" Height="450" Width="800">
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="20"/>
@@ -21,16 +21,30 @@
             <RowDefinition Height="*"/>
             <RowDefinition Height="auto"/>
             <RowDefinition Height="auto"/>
+            <RowDefinition Height="auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="20"/>
         </Grid.RowDefinitions>
 
+        <TextBlock Grid.Column="2" Grid.Row="1" MaxWidth="800"
+                   Grid.ColumnSpan="1"
+                   Margin="0,0,0,10" FontSize="14" VerticalAlignment="Center" HorizontalAlignment="Center"
+                   >
+            Выберите файл, содержащий матрицу. <LineBreak/>
+            Формат данных: в первой строке находятся 2 числа - количетсво строк и столбцов соответственно; <LineBreak/>
+            далее хранится вся матрица целиком (плотный формат). <LineBreak/>
+            <LineBreak/>
+            Выходные данные будут записаны в файлы log.txt, logL.txt, logU.txt <LineBreak/>
+            в той же директории, что и выбранный файл
+        </TextBlock>
+
         <TextBox Grid.Column="2" Grid.Row="2"
-                 Width="150" Margin="0,0,10,0"
+                 MinWidth="100" MaxWidth="600"
+                 Margin="0,0,10,0"
                  x:Name="fileTextBox"/>
         <Button Grid.Column="3" Grid.Row="2"
-                MinWidth="100"
-            x:Name="FileChooser" Content="Выбрать файл" Click="FileChooser_Click" />
+                MinWidth="100" MaxWidth="150"
+            x:Name="FileChooser" Content="Выбрать файл" Click="FileChooser_Click" HorizontalAlignment="Left" Padding="10,1,1,1" />
         <Button Grid.Column="2" Grid.Row="3"
                 Grid.ColumnSpan="2"
                 MinWidth="100" MaxWidth="200"
