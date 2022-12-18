@@ -3,6 +3,8 @@ using System.IO;
 using System.Collections.Generic;
 using Sparse_Matrix.ISparseMatrix;
 using IOutils;
+using System.Xml.Linq;
+using System.Runtime.CompilerServices;
 
 namespace Sparse_Matrix.SparseMatrix_CSR
 {
@@ -22,6 +24,11 @@ namespace Sparse_Matrix.SparseMatrix_CSR
         LinkedListNode<Element>[] IAT = { null };
         private bool transposedIsRelevant = false;   // при различных операциях (перестановка строк и т.д.)
                                                      // транспонирование может стать неактуальным
+
+        // Рефлексия для возможности конкатенации списков
+        private System.Reflection.FieldInfo headProp = typeof(LinkedList<Element>).GetField("head", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        private System.Reflection.FieldInfo nextProp = typeof(LinkedListNode<Element>).GetField("next", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        private System.Reflection.FieldInfo prevProp = typeof(LinkedListNode<Element>).GetField("prev", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
 
         public stype Rows { get; } = 0;
         public stype Columns { get; private set; } = 0;
@@ -188,8 +195,8 @@ namespace Sparse_Matrix.SparseMatrix_CSR
                     P[k + offset] = P[maxRow + offset];
                     P[maxRow + offset] = temp;
 
-                    SwapRows(U, k, maxRow);
-                    SwapRows(L, k, maxRow);
+                    U.SwapRows(k, maxRow);
+                    L.SwapRows(k, maxRow);
 
                     //sw.WriteLine("SwapRows(" + k + ", " + maxRow + ")");
                 }
@@ -463,13 +470,15 @@ namespace Sparse_Matrix.SparseMatrix_CSR
             return maxElement;
         }
 
-        public static void SwapRows(SparseMatrix _matrix, stype row1, stype row2)             // работает за O(кол-во ненулевых элементов)
-        {                                                                                    // ПОТОМУ ЧТО LinkedList'ы НЕЛЬЗЯ ОБЪЕДИНЯТЬ!!!!!!
-            SparseMatrixCSR matrix = (SparseMatrixCSR)_matrix;
-            if ((row1 < 1) || (row1 > matrix.Rows) || (row2 < 1) || (row2 > matrix.Rows))
+        public void SwapRows(stype row1, stype row2)  // O(1)
+        {
+            if ((row1 < 1) || (row1 > Rows) || (row2 < 1) || (row2 > Rows))
                 throw new Exception("Выход за пределы матрицы");
 
             if (row1 == row2) return;
+
+            if ((IA[row1 + offset] == IA[row1 + 1 + offset]) && (IA[row2 + offset] == IA[row2 + 1 + offset]))
+                return;
 
             if (row1 > row2)
             {
@@ -478,48 +487,106 @@ namespace Sparse_Matrix.SparseMatrix_CSR
                 row2 = temp;
             }
 
-            LinkedList<Element> newElements = new LinkedList<Element>(new Element[] { null });
-            LinkedListNode<Element>[] newIA = new LinkedListNode<Element>[matrix.Rows + 1];
-            newIA[matrix.Rows + 1 + offset] = newElements.Last;
+            LinkedListNode<Element> row1First = IA[row1 + offset];
+            LinkedListNode<Element> row1Last = (IA[row1 + 1 + offset] != Elements.First) ? IA[row1 + 1 + offset].Previous : IA[row1 + 1 + offset];
+            LinkedListNode<Element> row2First = IA[row2 + offset];
+            LinkedListNode<Element> row2Last = IA[row2 + 1 + offset].Previous;
 
-            LinkedListNode<Element> first, last, current;
+            if (row1First == row1Last.Next)
+                row1Last = row2First.Previous;
+            if (row2First == row2Last.Next)
+                row2First = row1Last.Next;
 
-            for (stype i = 1; i <= matrix.Rows; ++i)
+            LinkedListNode<Element> row1superfirst;
+            LinkedListNode<Element> row1superlast;
+            LinkedListNode<Element> row2superfirst;
+            LinkedListNode<Element> row2superlast;
+            LinkedListNode<Element> lastnode;
+
+            if ((row1First != Elements.First) && (row1Last.Next != row2First))
             {
-                if (i == row1)
-                {
-                    first = matrix.IA[row2 + offset];
-                    last = matrix.IA[row2 + 1 + offset].Previous;
-                }
-                else if (i == row2)
-                {
-                    first = matrix.IA[row1 + offset];
-                    last = matrix.IA[row1 + 1 + offset].Previous;
-                }
-                else
-                {
-                    first = matrix.IA[i + offset];
-                    last = matrix.IA[i + 1 + offset].Previous;
-                }
+                row1superfirst = row1First.Previous;
+                row1superlast = row1Last.Next;
+                row2superfirst = row2First.Previous;
+                row2superlast = row2Last.Next;
 
-                newIA[i + offset] = newElements.Last;
-                for (current = first; current != last.Next; current = current.Next)
-                {
-                    if (current.Value == null)
-                    {
-                        newElements.AddBefore(newElements.Last, new Element(1, 1));  // bad
-                        newElements.Last.Previous.Value = null;
-                    }
-                    else
-                        newElements.AddBefore(newElements.Last, new Element(current.Value.Index, current.Value.ElemValue));
-                    if (current == first)
-                        newIA[i + offset] = newElements.Last.Previous;
-                }
+                SetNextNode(row1superfirst, row2First);
+                SetPrevNode(row2First, row1superfirst);
+                SetNextNode(row2Last, row1superlast);
+                SetPrevNode(row1superlast, row2Last);
+
+                SetNextNode(row2superfirst, row1First);
+                SetPrevNode(row1First, row2superfirst);
+                SetNextNode(row1Last, row2superlast);
+                SetPrevNode(row2superlast, row1Last);
+
+                IA[row1 + offset] = row2First;
+                IA[row1 + 1 + offset] = row2Last.Next;
+                IA[row2 + offset] = row1First;
+                IA[row2 + 1 + offset] = row1Last.Next;
+            }
+            else if ((row1First != Elements.First) && (row1Last.Next == row2First))
+            {
+                row1superfirst = row1First.Previous;
+                row2superlast = row2Last.Next;
+
+                SetNextNode(row1superfirst, row2First);
+                SetPrevNode(row2First, row1superfirst);
+                SetNextNode(row2Last, row1First);
+                SetPrevNode(row1First, row2Last);
+                SetNextNode(row1Last, row2superlast);
+                SetPrevNode(row2superlast, row1Last);
+
+                IA[row1 + offset] = row2First;
+                IA[row1 + 1 + offset] = row2Last.Next;
+                IA[row2 + offset] = row1First;
+                IA[row2 + 1 + offset] = row1Last.Next;
+            }
+            else if ((row1First == Elements.First) && (row1Last.Next != row2First))
+            {
+                lastnode = Elements.Last;
+
+                row1superlast = row1Last.Next;
+                row2superfirst = row2First.Previous;
+                row2superlast = row2Last.Next;
+
+                SetNextNode(row2Last, row1superlast);
+                SetPrevNode(row1superlast, row2Last);
+                SetNextNode(row2superfirst, row1First);
+                SetPrevNode(row1First, row2superfirst);
+                SetNextNode(row1Last, row2superlast);
+                SetPrevNode(row2superlast, row1Last);
+
+                SetHeadNode(row2First);
+                SetNextNode(lastnode, row2First);
+                SetPrevNode(row2First, lastnode);
+
+                IA[row1 + offset] = row2First;
+                IA[row1 + 1 + offset] = row2Last.Next;
+                IA[row2 + offset] = row1First;
+                IA[row2 + 1 + offset] = row1Last.Next;
+            }
+            else if ((row1First == Elements.First) && (row1Last.Next == row2First))
+            {
+                lastnode = Elements.Last;
+                row2superlast = row2Last.Next;
+
+                SetNextNode(row2Last, row1First);
+                SetPrevNode(row1First, row2Last);
+                SetNextNode(row1Last, row2superlast);
+                SetPrevNode(row2superlast, row1Last);
+
+                SetHeadNode(row2First);
+                SetNextNode(lastnode, row2First);
+                SetPrevNode(row2First, lastnode);
+
+                IA[row1 + offset] = row2First;
+                IA[row1 + 1 + offset] = row2Last.Next;
+                IA[row2 + offset] = row1First;
+                IA[row2 + 1 + offset] = row1Last.Next;
             }
 
-            matrix.IA = newIA;
-            matrix.Elements = newElements;
-            matrix.transposedIsRelevant = false;
+            transposedIsRelevant = false;
         }
 
         public static SparseVector MultiplyMatrixByVector(SparseMatrix _matrix, SparseVector _vector)  // *where vector is column
@@ -840,6 +907,21 @@ namespace Sparse_Matrix.SparseMatrix_CSR
             Element temp = x.Value;
             x.Value = y.Value;
             y.Value = temp;
+        }
+
+        private void SetHeadNode(LinkedListNode<Element> headNode)
+        {
+            headProp.SetValue(Elements, headNode);
+        }
+
+        private void SetNextNode(LinkedListNode<Element> node, LinkedListNode<Element> nextNode)
+        {
+            nextProp.SetValue(node, nextNode);
+        }
+
+        private void SetPrevNode(LinkedListNode<Element> node, LinkedListNode<Element> prevNode)
+        {
+            prevProp.SetValue(node, prevNode);
         }
     }
 }

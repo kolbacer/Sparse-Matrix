@@ -66,10 +66,10 @@ namespace Sparse_Matrix.SparseMatrix_CSR.Tests
             Console.WriteLine();
             matrix1.PrintStorageTransposed();
 
-            SparseMatrixCSR.SwapRows(matrix1, 1, 3);
+            matrix1.SwapRows(1, 3);
             matrix1.Print();
             Console.WriteLine();
-            SparseMatrixCSR.SwapRows(matrix1, 2, 3);
+            matrix1.SwapRows(2, 3);
             matrix1.Print();
 
             Console.WriteLine();

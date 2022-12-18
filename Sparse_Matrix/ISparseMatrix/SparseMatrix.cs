@@ -16,6 +16,7 @@ namespace Sparse_Matrix.ISparseMatrix
         public void AssignElement(stype i, stype j, vtype value);
         public LUP LUPdecompose();
         public void AddRows(stype augend, stype addend, vtype coef = 1);
+        public void SwapRows(stype row1, stype row2);
         public SparseMatrix Copy();
         public static SparseVector MultiplyMatrixByVector(SparseMatrix _matrix, SparseVector _vector) => throw new NotImplementedException();
         public static SparseVector SolveSLAE(LUP LUP, SparseVector b) => throw new NotImplementedException();
