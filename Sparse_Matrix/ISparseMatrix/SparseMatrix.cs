@@ -7,7 +7,7 @@ namespace Sparse_Matrix.ISparseMatrix
     using stype = Int32;
     using vtype = Double;
 
-    interface SparseMatrix
+    public interface SparseMatrix
     {
         public stype Rows { get; }
         public stype Columns { get; }

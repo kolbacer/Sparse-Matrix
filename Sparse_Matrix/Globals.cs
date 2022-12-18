@@ -2,7 +2,7 @@
 
 namespace Sparse_Matrix
 {
-    static class Globals
+    public static class Globals
     {
         public static StreamWriter sw;
         public static StreamWriter swL;

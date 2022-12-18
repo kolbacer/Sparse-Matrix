@@ -9,7 +9,7 @@ namespace Sparse_Matrix.SparseMatrix_CSR
     using stype = Int32;
     using vtype = Double;
 
-    partial class SparseMatrixCSR : SparseMatrix
+    public partial class SparseMatrixCSR : SparseMatrix
     {
         LinkedList<Element> Elements = new LinkedList<Element>(new Element[] { null });
         LinkedListNode<Element>[] IA = { null };                   // хранит ссылки на элементы списка Elements

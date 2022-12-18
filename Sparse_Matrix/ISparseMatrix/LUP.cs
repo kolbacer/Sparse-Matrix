@@ -7,7 +7,7 @@ namespace Sparse_Matrix.ISparseMatrix
     using stype = Int32;
     using vtype = Double;
 
-    interface LUP
+    public interface LUP
     {
         public SparseMatrix L { get; }
         public SparseMatrix U { get; }
