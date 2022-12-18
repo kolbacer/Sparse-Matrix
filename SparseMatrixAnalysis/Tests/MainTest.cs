@@ -175,7 +175,7 @@ namespace SparseMatrixAnalysis.Tests
 
             // !!!!!!!
 
-            Results.s1.Items.Add(new BarItem { Value = resultTime.TotalSeconds + resultTime.TotalMilliseconds / 1000 });
+            Results.s1.Items.Add(new BarItem { Value = resultTime.TotalMilliseconds / 1000 });
 
             Console.WriteLine();
         }

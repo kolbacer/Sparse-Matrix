@@ -38,7 +38,7 @@ namespace SparseMatrixAnalysis.Tests
             Console.WriteLine("[Numerics] LUPdecompose time: " + elapsedTime);
             //}
 
-            Results.s2.Items.Add(new BarItem { Value = resultTime.TotalSeconds + resultTime.TotalMilliseconds / 1000 });
+            Results.s2.Items.Add(new BarItem { Value = resultTime.TotalMilliseconds / 1000 });
         }
     }
 }
