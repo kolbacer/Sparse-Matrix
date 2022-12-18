@@ -11,6 +11,7 @@ using IOutils;
 using SparseMatrixAnalysis.Plots;
 using OxyPlot.Series;
 using OxyPlot.Legends;
+using OxyPlot.Axes;
 
 namespace SparseMatrixAnalysis.Tests
 {
@@ -129,18 +130,14 @@ namespace SparseMatrixAnalysis.Tests
             {
                 Title = $"Локальное заполнение в L",
                 Color = OxyPlot.OxyColors.Blue,
-                StrokeThickness = 1,
-                DataFieldX = "Итерация",
-                DataFieldY = "Ненулевых элементов"
+                StrokeThickness = 1
             };
 
             var line2 = new LineSeries()
             {
                 Title = $"Локальное заполнение в U",
                 Color = OxyPlot.OxyColors.Red,
-                StrokeThickness = 1,
-                DataFieldX = "Итерация",
-                DataFieldY = "Ненулевых элементов"
+                StrokeThickness = 1
             };
 
             for (int i = 0; i < pointCount; i++)
@@ -163,10 +160,24 @@ namespace SparseMatrixAnalysis.Tests
                 LegendPosition = LegendPosition.TopRight,
             });
 
+            model.Axes.Add(new LinearAxis()
+            {
+                Position = AxisPosition.Bottom,
+                Title = "Итерация"
+            });
+            model.Axes.Add(new LinearAxis()
+            {
+                Position = AxisPosition.Left,
+                Title = "Кол-во ненулевых элементов"
+            });
+
             // load the model into the user control
             localFillingPlotView.LocalFillingModel = model;
 
             plot.Show();
+
+            // !!!!!!!
+
 
 
             Console.WriteLine("\nEND");

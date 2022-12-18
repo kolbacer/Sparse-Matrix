@@ -32,6 +32,7 @@ namespace SparseMatrixAnalysis
         private void RunButton_Click(object sender, RoutedEventArgs e)
         {
             MainTest.Run(fileTextBox.Text);
+            NumericsTest.Run(fileTextBox.Text);
         }
 
         private void FileChooser_Click(object sender, RoutedEventArgs e)
