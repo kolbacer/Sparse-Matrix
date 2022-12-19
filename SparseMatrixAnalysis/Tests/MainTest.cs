@@ -38,17 +38,19 @@ namespace SparseMatrixAnalysis.Tests
 
             sw.WriteLine();
             Console.WriteLine("Reading from file...");
-            SparseMatrix supermatrix = SparseMatrixCSR.ReadDenseFromFile(filepath);
+            SparseMatrix matrix = SparseMatrixCSR.ReadDenseFromFile(filepath);
             Console.WriteLine("Matrix was read!");
-            supermatrix.PrintToLog();
+            matrix.PrintToLog();
             sw.WriteLine();
             sw.WriteLine("LUP: ");
             sw.WriteLine();
             sw.WriteLine("L:");
 
+            int initialNonzeros = matrix.NumberOfNonzeroElements;
+
             Console.WriteLine("LUP decomposing...");
             var startTime = System.Diagnostics.Stopwatch.StartNew();
-            LUP LUP1 = supermatrix.LUPdecompose();
+            LUP LUP1 = matrix.LUPdecompose();
             startTime.Stop();
             var resultTime = startTime.Elapsed;
             string elapsedTime = String.Format("{0:00}:{1:00}:{2:00}.{3:000}",
@@ -143,6 +145,8 @@ namespace SparseMatrixAnalysis.Tests
                 line2.Points.Add(new OxyPlot.DataPoint(xs[i], ys2[i]));
             }
 
+            var line3 = new FunctionSeries((x) => initialNonzeros, 0, pointCount, 1.0, "Кол-во ненулевых элементов в исходной матрице");
+
             // create the model and add the lines to it
             var model = new OxyPlot.PlotModel
             {
@@ -150,6 +154,7 @@ namespace SparseMatrixAnalysis.Tests
             };
             model.Series.Add(line1);
             model.Series.Add(line2);
+            model.Series.Add(line3);
 
             model.Legends.Add(new Legend
             {
